@@ -38,8 +38,20 @@ WHERE time > date_trunc('week', now())
 GROUP BY habits.habit_name, habits.target;
 
 # Get names, and the total amount done today, with a "is this done" flag
-SELECT habits.habit_name, SUM(unit_volume), habits.target/7 as daily_target, SUM(unit_volume)/(habits.target/7)*100 as daily_percent_complete, SUM(unit_volume)/(habits.target/7)*100 >= 100 as done
+SELECT habits.habit_id, habits.habit_name, SUM(unit_volume), habits.target/7 as daily_target, habits.target as weekly_target, SUM(unit_volume)/(habits.target/7)*100 as daily_percent_complete, SUM(unit_volume)/(habits.target)*100 as weekly_percent_complete, SUM(unit_volume)/(habits.target/7)*100 >= 100 as daily_done, SUM(unit_volume)/(habits.target/7)*100 >= 100 as weekly_done
 FROM habit_events
-LEFT JOIN habits ON habit_events.habit_id=habits.habit_id
+RIGHT JOIN habits ON habit_events.habit_id=habits.habit_id
 WHERE time > date_trunc('week', now())
-GROUP BY habits.habit_name, habits.target;
+GROUP BY habits.habit_id, habits.habit_name, habits.target;
+
+with x as (SELECT habits.habit_id, habits.habit_name, 0 as unit_volume, habits.target/7 as daily_target, habits.target as weekly_target, 0 as daily_percent_complete, 0 as weekly_percent_complete, false as daily_done, false as weekly_done
+from habits
+UNION
+SELECT habits.habit_id, habits.habit_name, SUM(unit_volume) as unit_volume, habits.target/7 as daily_target, habits.target as weekly_target, SUM(unit_volume)/(habits.target/7)*100 as daily_percent_complete, SUM(unit_volume)/(habits.target)*100 as weekly_percent_complete, SUM(unit_volume)/(habits.target/7)*100 >= 100 as daily_done, SUM(unit_volume)/(habits.target/7)*100 >= 100 as weekly_done
+FROM habit_events
+RIGHT JOIN habits ON habit_events.habit_id=habits.habit_id
+WHERE time > date_trunc('week', now())
+GROUP BY habits.habit_id, habits.habit_name, habits.target)
+select habit_id, habit_name, daily_target, weekly_target, max(daily_percent_complete) as daily_percent_complete, max(weekly_percent_complete) as weekly_percent_complete from x 
+group by habit_id, habit_name, daily_target, weekly_target;
+
