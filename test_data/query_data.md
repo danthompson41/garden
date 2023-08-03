@@ -79,3 +79,61 @@ GROUP  BY habit_id,
           daily_target,
           weekly_target; 
 
+# Get daily and 
+WITH x
+     AS (SELECT habits.habit_id   AS habit_id,
+                habits.habit_name,
+                habits.unit,
+                0                 AS daily_volume,
+                0                 AS weekly_volume,
+                habits.target / 7 AS daily_target,
+                habits.target     AS weekly_target
+         FROM   habits
+         UNION
+         SELECT habits.habit_id   AS habit_id,
+                habits.habit_name,
+                                habits.unit,
+
+                0                 AS daily_volume,
+                Sum(unit_volume)  AS weekly_volume,
+                habits.target / 7 AS daily_target,
+                habits.target     AS weekly_target
+         FROM   habit_events
+                RIGHT JOIN habits
+                        ON habit_events.habit_id = habits.habit_id
+         WHERE  time > Date_trunc('week', Now())
+         GROUP  BY habits.habit_id,
+                   habits.habit_name,
+                   habits.target
+         UNION
+         SELECT habits.habit_id   AS habit_id,
+                habits.habit_name,
+                                habits.unit,
+
+                Sum(unit_volume)  AS daily_volume,
+                0                 AS weekly_volume,
+                habits.target / 7 AS daily_target,
+                habits.target     AS weekly_target
+         FROM   habit_events
+                RIGHT JOIN habits
+                        ON habit_events.habit_id = habits.habit_id
+         WHERE  time > Date_trunc('week', Now())
+         GROUP  BY habits.habit_id,
+                   habits.habit_name,
+                   habits.target)
+SELECT habit_id,
+       habit_name,
+       unit
+       max(daily_volume),
+       max(weekly_volume),
+       daily_target,
+       weekly_target,
+       Sum(unit_volume) / daily_target * 100         AS daily_percent_complete,
+       Sum(unit_volume) / weekly_target * 100        AS weekly_percent_complete,
+       Sum(unit_volume) / weekly_target * 100 >= 100 AS daily_done,
+       Sum(unit_volume) / daily_target * 100 >= 100  AS weekly_done
+FROM   x
+GROUP  BY habit_id,
+          habit_name,
+          daily_target,
+          weekly_target; 

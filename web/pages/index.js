@@ -25,7 +25,7 @@ export default function Index({ posts, globalData, results }) {
               className="md:first:rounded-t-lg md:last:rounded-b-lg backdrop-blur-lg bg-white dark:bg-black dark:bg-opacity-30 bg-opacity-10 hover:bg-opacity-20 dark:hover:bg-opacity-50 transition border border-gray-800 dark:border-white border-opacity-10 dark:border-opacity-10 border-b-0 last:border-b hover:border-b hovered-sibling:border-t-0"
             >
               <Link
-                as={`/habit/${habit.habit_name}`}
+                as={`/habit/${habit.habit_id}`}
                 href={`/habit/[slug]`}
               >
                 <a className="py-6 lg:py-10 px-6 lg:px-16 block focus:outline-none focus:ring-4">
@@ -33,7 +33,7 @@ export default function Index({ posts, globalData, results }) {
                   {habit.habit_name && (
                     <>
                       <p className="mt-3 text-lg opacity-60">
-                        Daily Percent Complete: {habit.daily_percent_complete}
+                        Daily Percent Complete: {habit.daily_percent_complete} {habit.unit}
                       </p>
                       <p className="mt-3 text-lg opacity-60">
                         Daily target: {habit.daily_target}
@@ -73,7 +73,7 @@ export async function getServerSideProps() {
   const globalData = getGlobalData();
   let results = null;
   try {
-    const query = "WITH x AS (SELECT habits.habit_id AS habit_id, habits.habit_name, 0 AS unit_volume, habits.target/7 AS daily_target, habits.target AS weekly_target FROM habits UNION SELECT habits.habit_id AS habit_id, habits.habit_name, Sum(unit_volume) AS unit_volume, habits.target/7 AS daily_target, habits.target AS weekly_target FROM habit_events RIGHT JOIN habits ON habit_events.habit_id=habits.habit_id WHERE time > Date_trunc('week', Now()) GROUP BY habits.habit_id, habits.habit_name, habits.target) SELECT habit_id, habit_name, daily_target, weekly_target, Sum(unit_volume)/daily_target*100 AS daily_percent_complete, Sum(unit_volume)/weekly_target*100 AS weekly_percent_complete, Sum(unit_volume)/weekly_target*100 >= 100 AS daily_done, Sum(unit_volume)/daily_target*100 >= 100 AS weekly_done FROM x GROUP BY habit_id, habit_name, daily_target, weekly_target;"
+    const query = "WITH x AS ( SELECT habits.habit_id AS habit_id, habits.habit_name, 0 AS daily_volume, 0 AS weekly_volume, habits.target / 7 AS daily_target, habits.target AS weekly_target FROM habits UNION SELECT habits.habit_id AS habit_id, habits.habit_name, 0 AS daily_volume, sum(unit_volume) as weekly_volume, habits.target / 7 AS daily_target, habits.target AS weekly_target FROM habit_events RIGHT JOIN habits ON habit_events.habit_id = habits.habit_id WHERE time > date_trunc('week', now()) GROUP BY habits.habit_id, habits.habit_name, habits.target UNION SELECT habits.habit_id AS habit_id, habits.habit_name, sum(unit_volume) AS daily_volume, 0 AS weekly_volume, habits.target / 7 AS daily_target, habits.target AS weekly_target FROM habit_events RIGHT JOIN habits ON habit_events.habit_id = habits.habit_id WHERE time > date_trunc('week', now()) GROUP BY habits.habit_id, habits.habit_name, habits.target ) SELECT habit_id, habit_name, max(daily_volume), max(weekly_volume), daily_target, weekly_target, max(daily_volume) / daily_target * 100 AS daily_percent_complete, max(weekly_volume) / weekly_target * 100 AS weekly_percent_complete, max(daily_volume) / weekly_target * 100 >= 100 AS daily_done, max(weekly_volume) / daily_target * 100 >= 100 AS weekly_done FROM x GROUP BY habit_id, habit_name, daily_target, weekly_target;"
     const result = await conn.query(
       query
     );
@@ -86,4 +86,3 @@ export async function getServerSideProps() {
   return { props: { posts, globalData, results } };
 
 }
-
